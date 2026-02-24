@@ -1,0 +1,17 @@
+target/
+.idea/
+.vscode/
+*.iml
+*.log
+
+# OS
+.DS_Store
+
+# Env/config overrides
+.env
+application-local.yml
+application-local.properties
+
+### Spring ###
+logs/
+

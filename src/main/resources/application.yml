@@ -1,0 +1,32 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: bloghub-rest-api
+  profiles:
+    active: local
+  jackson:
+    serialization:
+      WRITE_DATES_AS_TIMESTAMPS: false
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
+logging:
+  level:
+    org.springframework.security: INFO
+
+bloghub:
+  api:
+    base-path: /api/v1
+  security:
+    jwt:
+      # Override in application-local.yml or env var BLOGHUB_JWT_SECRET
+      secret: ${BLOGHUB_JWT_SECRET:CHANGE_ME}
+      expiration-minutes: ${BLOGHUB_JWT_EXP_MINUTES:120}
+
