@@ -4,22 +4,48 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import {
   Container, Box, Card, CardContent, Typography,
-  TextField, Button, Alert, CircularProgress, Divider
+  TextField, Button, Alert, CircularProgress, Divider,
+  FormControl, InputLabel, Select, MenuItem
 } from '@mui/material'
 import { login, clearError } from '../redux/slices/authSlice'
 import { useSnackbar } from 'notistack'
+
+const demoAccounts = [
+  {
+    label: 'Demo User',
+    usernameOrEmail: 'demo_user',
+    password: 'BlogHub@2026Demo',
+  },
+]
 
 export default function LoginPage() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const { enqueueSnackbar } = useSnackbar()
   const { loading, error } = useSelector((state) => state.auth)
+  const [selectedDemoAccount, setSelectedDemoAccount] = useState('')
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm()
+
+  const handleDemoAccountChange = (event) => {
+    const selectedLabel = event.target.value
+    setSelectedDemoAccount(selectedLabel)
+
+    const account = demoAccounts.find((item) => item.label === selectedLabel)
+    if (!account) {
+      setValue('usernameOrEmail', '')
+      setValue('password', '')
+      return
+    }
+
+    setValue('usernameOrEmail', account.usernameOrEmail, { shouldValidate: true })
+    setValue('password', account.password, { shouldValidate: true })
+  }
 
   const onSubmit = async (data) => {
     dispatch(clearError())
@@ -53,6 +79,27 @@ export default function LoginPage() {
             )}
 
             <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+              {import.meta.env.DEV && (
+                <FormControl fullWidth margin="normal">
+                  <InputLabel id="demo-account-label">Quick login</InputLabel>
+                  <Select
+                    labelId="demo-account-label"
+                    label="Quick login"
+                    value={selectedDemoAccount}
+                    onChange={handleDemoAccountChange}
+                  >
+                    <MenuItem value="">
+                      <em>Select an account</em>
+                    </MenuItem>
+                    {demoAccounts.map((account) => (
+                      <MenuItem key={account.label} value={account.label}>
+                        {account.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+
               <TextField
                 label="Username or Email"
                 fullWidth
