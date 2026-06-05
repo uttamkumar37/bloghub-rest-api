@@ -12,6 +12,7 @@ import com.bloghub.api.repository.CommentRepository;
 import com.bloghub.api.repository.PostRepository;
 import com.bloghub.api.repository.UserRepository;
 import com.bloghub.api.service.CommentService;
+import com.bloghub.api.service.outbox.OutboxService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -33,6 +34,7 @@ public class CommentServiceImpl implements CommentService {
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
+    private final OutboxService outboxService;
 
     @Override
     @Transactional
@@ -47,6 +49,12 @@ public class CommentServiceImpl implements CommentService {
                 .build();
 
         Comment saved = commentRepository.save(comment);
+        outboxService.saveEvent(
+                "COMMENT",
+                String.valueOf(saved.getId()),
+                "NEW_COMMENT_NOTIFICATION",
+                "{\"postId\":" + postId + ",\"commentId\":" + saved.getId() + ",\"authorId\":" + author.getId() + "}"
+        );
         log.info("Comment {} added to post {} by '{}'", saved.getId(), postId, username);
         return mapToDto(saved);
     }

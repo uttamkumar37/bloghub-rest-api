@@ -106,11 +106,6 @@ CREATE TABLE IF NOT EXISTS post_likes (
 -- Default roles
 INSERT IGNORE INTO roles (name) VALUES ('ROLE_USER'), ('ROLE_ADMIN');
 
--- Default admin user (password: Admin@123 — BCrypt hash)
-INSERT IGNORE INTO users (id, name, username, email, password)
-VALUES (1, 'Administrator', 'admin', 'admin@bloghub.com',
-        '$2a$12$Xk/a5h6QMXBI8mBX.6zjE.v7c4FSmBJH1UBF1sPxRh1zr7YQE5Oi6');
-
--- Assign admin role
-INSERT IGNORE INTO user_roles (user_id, role_id)
-SELECT 1, id FROM roles WHERE name IN ('ROLE_USER', 'ROLE_ADMIN');
+-- Admin users are no longer seeded with a hardcoded password.
+-- Use APP_BOOTSTRAP_ADMIN_ENABLED=true and APP_BOOTSTRAP_ADMIN_PASSWORD=<strong secret>
+-- for explicit one-time local bootstrap, then rotate or disable the bootstrap.

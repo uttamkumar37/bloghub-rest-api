@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 /**
  * Repository for Post entity with pagination, search, and author-scoped queries.
  */
@@ -26,4 +28,8 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     /** Filter by category */
     Page<Post> findByCategoryIgnoreCase(String category, Pageable pageable);
+
+    /** Keyset pagination for feed-style scrolling. Uses descending id as a stable cursor. */
+    @Query("SELECT p FROM Post p WHERE (:cursor IS NULL OR p.id < :cursor) ORDER BY p.id DESC")
+    List<Post> findNextKeysetPage(@Param("cursor") Long cursor, Pageable pageable);
 }

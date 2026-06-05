@@ -1,6 +1,57 @@
-# BlogHub REST API
+# BlogHub REST API - Production-Grade SDE-II Backend Portfolio
 
-A production-ready full-stack blog application built with **Spring Boot 3** and **React 18**.
+A backend-focused portfolio project built with **Spring Boot 3.5**, **Java 17**, **MySQL**, **Redis**, **Flyway**, **Docker**, and **React 18**. The project demonstrates production-grade backend decisions across authentication, database design, caching, observability, async processing, deployment, and testing.
+
+## Why This Project Matters
+
+BlogHub is intentionally more than CRUD. It models the backend concerns an SDE-II engineer is expected to own: secure auth lifecycle, schema migrations, query performance, cache invalidation, incident debugging, operational metrics, release safety, and clear trade-off communication.
+
+## Production-Grade Highlights
+
+| Area | Implementation |
+|---|---|
+| Security | JWT access tokens, refresh token rotation, Redis blacklist, logout, rate-limited auth, strong passwords, account lockout, security headers, safe admin bootstrap |
+| Database | Flyway migrations, soft delete, audit fields, composite indexes, keyset pagination, transaction boundaries |
+| Redis | Token blacklist, rate limiting, idempotency, cache service, post view counters |
+| Observability | Actuator health/metrics/prometheus, JSON logs, `X-Request-ID`, cache hit/miss metrics, runbook |
+| Async | Outbox event table and event types for email verification, comments, and likes |
+| Deployment | Docker Compose with MySQL/Redis/MinIO, Prometheus/Grafana profile, K8s manifests, Helm skeleton |
+| API Maturity | Versioned base path, validation, standard errors, optional idempotency key, OpenAPI |
+| Portfolio Evidence | Architecture docs, trade-offs, scorecard, production checklist, interview explanation |
+
+## Architecture
+
+```text
+React/Nginx
+   |
+   v
+Spring Boot API (/api/v1)
+   |-- Spring Security + JWT + refresh tokens
+   |-- Services: posts, comments, users, auth, files, outbox
+   |-- Redis: blacklist, rate limits, idempotency, counters/cache
+   |-- MySQL: users, roles, posts, comments, likes, refresh tokens, outbox
+   |-- Actuator/Prometheus + JSON logs + X-Request-ID
+   v
+Docker Compose / Kubernetes-ready deployment assets
+```
+
+## Portfolio Metrics Targets
+
+| Metric | Target |
+|---|---:|
+| p95 read latency | < 300 ms under portfolio load |
+| Throughput | 100 RPS local portfolio load test |
+| 5xx error rate | < 1% over 5 minutes |
+| Cache hit ratio | > 70% for hot cacheable reads |
+| Startup time | < 20 seconds after dependencies are healthy |
+| Test coverage target | 75% overall, 85% service layer |
+
+## Screenshots / Demo
+
+- Live demo: placeholder
+- Swagger screenshot: placeholder
+- Grafana dashboard screenshot: placeholder
+- Frontend screenshot: placeholder
 
 ---
 
@@ -24,14 +75,22 @@ A production-ready full-stack blog application built with **Spring Boot 3** and 
 
 ## Features
 
-- **JWT Authentication** — stateless, HS512-signed tokens
+- **JWT Authentication** — stateless access tokens with refresh-token rotation
+- **Logout / Token Revocation** — Redis-backed access-token blacklist
+- **Auth Protection** — strong passwords, rate limiting, account lockout
 - **Role-based Access Control** — `ROLE_USER` and `ROLE_ADMIN`
 - **Posts** — full CRUD, category filtering, full-text search, pagination
+- **Keyset Pagination** — cursor-style endpoint for scalable feed reads
 - **Comments** — nested comment thread per post
 - **Likes** — toggle like/unlike on posts
 - **User Profiles** — view and update profile; admin can manage any user
+- **File Upload Boundary** — post cover image upload with safe filenames and content-type checks
+- **Flyway Migrations** — versioned schema with production validation
+- **Redis** — blacklist, rate limiting, idempotency, counters, cache support
+- **Outbox Events** — email verification, comment notification, post liked events
+- **Observability** — Actuator, Prometheus, JSON logs, correlation IDs
 - **Swagger / OpenAPI 3** — interactive docs at `/api/v1/swagger-ui.html`
-- **Docker** — single `docker compose up` spins up MySQL + backend + frontend
+- **Docker** — Compose spins up MySQL + Redis + MinIO + backend + frontend
 - **CI/CD** — GitHub Actions pipeline: test → build → push GHCR images → deploy
 
 ---
@@ -41,9 +100,11 @@ A production-ready full-stack blog application built with **Spring Boot 3** and 
 | Layer       | Technology                                      |
 |-------------|-------------------------------------------------|
 | Language    | Java 17, JavaScript (ES2022)                    |
-| Framework   | Spring Boot 3.2.3, React 18                     |
+| Framework   | Spring Boot 3.5.4, React 18                     |
 | Security    | Spring Security 6, JWT (jjwt 0.12.3)           |
 | Persistence | Spring Data JPA, Hibernate, MySQL 8             |
+| Cache/Infra | Redis 7, Flyway, MinIO-compatible upload design |
+| Observability | Actuator, Micrometer, Prometheus, Grafana docs |
 | API Docs    | SpringDoc OpenAPI 2 (Swagger UI)                |
 | Frontend    | Vite 5, Redux Toolkit 2, MUI v5, React Router 6 |
 | HTTP Client | Axios 1.6                                       |
@@ -66,8 +127,8 @@ A production-ready full-stack blog application built with **Spring Boot 3** and 
 │                                 └──────────┬─────────────┘   │
 │                                            │                  │
 │                                 ┌──────────▼─────────────┐   │
-│                                 │ MySQL 8 (3306)          │   │
-│                                 │ Named volume for data   │   │
+│                                 │ MySQL 8 + Flyway        │   │
+│                                 │ Redis + MinIO optional  │   │
 │                                 └────────────────────────┘   │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -83,13 +144,16 @@ All routes are prefixed with `/api/v1`.
 | Method | Path                   | Auth | Description          |
 |--------|------------------------|------|----------------------|
 | POST   | `/auth/register`       | —    | Register new user    |
-| POST   | `/auth/login`          | —    | Login, returns JWT   |
+| POST   | `/auth/login`          | —    | Login, returns access + refresh tokens |
+| POST   | `/auth/refresh`        | —    | Rotate refresh token |
+| POST   | `/auth/logout`         | Required | Blacklist access token and revoke refresh token |
 
 ### Posts
 
 | Method | Path                          | Auth     | Description                       |
 |--------|-------------------------------|----------|-----------------------------------|
 | GET    | `/posts`                      | —        | List posts (paginated)            |
+| GET    | `/posts/keyset`               | —        | List posts with keyset pagination |
 | GET    | `/posts/{id}`                 | —        | Get post by ID                    |
 | GET    | `/posts/search?query=`        | —        | Full-text search                  |
 | GET    | `/posts/category/{category}`  | —        | Filter by category                |
@@ -116,6 +180,12 @@ All routes are prefixed with `/api/v1`.
 | GET    | `/users/{id}`   | —        | Get public user profile             |
 | PUT    | `/users/{id}`   | Required | Update profile (owner only)         |
 | DELETE | `/users/{id}`   | Required | Delete account (owner only)         |
+
+### Files
+
+| Method | Path                  | Auth     | Description              |
+|--------|-----------------------|----------|--------------------------|
+| POST   | `/files/post-cover`   | Required | Upload post cover image  |
 
 Full interactive documentation is available at **`http://localhost:8080/api/v1/swagger-ui.html`** when the backend is running.
 
@@ -155,14 +225,13 @@ export DB_URL="jdbc:mysql://localhost:3306/bloghub_db?useSSL=false&serverTimezon
 export DB_USERNAME=bloghub_user
 export DB_PASSWORD=bloghub_pass
 export JWT_SECRET=change_me_use_a_long_random_secret_at_least_64_chars
-export JWT_EXPIRATION_MS=86400000
+export JWT_EXPIRATION_MS=900000
 ./mvnw spring-boot:run
 ```
 
 The API starts on **`http://localhost:8080`**.
 
-> A default admin account is seeded on first startup:
-> - Username: `admin` | Password: `Admin@123`
+> Admin bootstrap is disabled by default. To create a local admin explicitly, set `APP_BOOTSTRAP_ADMIN_ENABLED=true` and provide `APP_BOOTSTRAP_ADMIN_PASSWORD` through environment variables.
 
 #### 4. Start the frontend
 
@@ -197,6 +266,10 @@ docker compose up --build
 | Backend  | http://localhost:8080/api/v1                     |
 | Swagger  | http://localhost:8080/api/v1/swagger-ui.html     |
 | MySQL    | localhost:3306 (bloghub_db)                      |
+| Redis    | localhost:6379                                   |
+| MinIO    | http://localhost:9001                            |
+| Prometheus | http://localhost:9090 with `--profile observability` |
+| Grafana  | http://localhost:3001 with `--profile observability` |
 
 #### 3. Stop services
 
@@ -217,8 +290,13 @@ Copy `.env.example` to `.env` and adjust the values.
 | `MYSQL_DATABASE`     | Yes      | bloghub_db     | Database name                         |
 | `MYSQL_USER`         | Yes      | bloghub_user   | Application DB user                   |
 | `MYSQL_PASSWORD`     | Yes      | bloghub_pass   | Application DB password               |
-| `JWT_SECRET`         | **Yes**  | *(none)*       | ≥64-char random string for HS512       |
-| `JWT_EXPIRATION_MS`  | No       | 86400000       | Token lifetime in milliseconds (24 h) |
+| `JWT_SECRET`         | **Yes**  | *(none)*       | ≥64-char random/base64 string for HMAC signing |
+| `JWT_EXPIRATION_MS`  | No       | 900000         | Access token lifetime in milliseconds |
+| `JWT_REFRESH_EXPIRATION_MS` | No | 604800000 | Refresh token lifetime in milliseconds |
+| `REDIS_HOST`         | Yes      | redis          | Redis host for Docker |
+| `APP_BOOTSTRAP_ADMIN_ENABLED` | No | false | Explicit admin bootstrap switch |
+| `APP_BOOTSTRAP_ADMIN_PASSWORD` | If bootstrap enabled | *(none)* | Strong admin bootstrap password |
+| `CORS_ALLOWED_ORIGIN_PATTERNS` | No | localhost origins | Comma-separated allowed origins |
 
 Generate a secure JWT secret:
 
@@ -238,6 +316,32 @@ cd backend
 Coverage report is generated at `backend/target/site/jacoco/index.html`.
 
 The test suite uses an **H2 in-memory database** (`@ActiveProfiles("test")`); no external services are required.
+
+Production hardening target: add Testcontainers MySQL and Redis integration suites, then enforce 75% overall and 85% service-layer coverage in CI.
+
+---
+
+## Production Documentation
+
+| Topic | Document |
+|---|---|
+| Architecture | [docs/architecture-deep-dive.md](docs/architecture-deep-dive.md) |
+| System design | [docs/system-design.md](docs/system-design.md) |
+| Security | [docs/security.md](docs/security.md) |
+| Auth flow | [docs/auth-flow.md](docs/auth-flow.md) |
+| Database performance | [docs/database-performance.md](docs/database-performance.md) |
+| Redis caching | [docs/redis-caching.md](docs/redis-caching.md) |
+| Observability | [docs/observability.md](docs/observability.md) |
+| Async events | [docs/async-events.md](docs/async-events.md) |
+| Outbox | [docs/outbox-pattern.md](docs/outbox-pattern.md) |
+| File upload | [docs/file-upload.md](docs/file-upload.md) |
+| API design | [docs/api-design.md](docs/api-design.md) |
+| Testing | [docs/testing-strategy.md](docs/testing-strategy.md) |
+| Deployment | [docs/deployment.md](docs/deployment.md) |
+| Runbook | [docs/runbook.md](docs/runbook.md) |
+| Trade-offs | [docs/tradeoffs.md](docs/tradeoffs.md) |
+| Interview explanation | [docs/interview-explanation.md](docs/interview-explanation.md) |
+| Portfolio score | [SDE-II-PORTFOLIO-SCORECARD.md](SDE-II-PORTFOLIO-SCORECARD.md) |
 
 ---
 
@@ -317,15 +421,36 @@ bloghub-rest-api/
 
 ---
 
-## Future Improvements
+## How I Would Explain This Project in an SDE-II Interview
 
-- [ ] Refresh token endpoint and token blacklist (Redis)
-- [ ] Email verification on registration (Spring Mail)
-- [ ] Image uploads for post cover photos (AWS S3 / MinIO)
+**Problem statement:** BlogHub is a blog platform that supports authenticated authors, public readers, posts, comments, likes, search, and profile management.
+
+**Architecture:** It is a modular Spring Boot backend with MySQL as source of truth, Redis for ephemeral distributed state, Flyway for schema versioning, and Docker/Kubernetes deployment assets.
+
+**Key backend decisions:** I added refresh token rotation, Redis blacklist, auth rate limiting, soft delete, keyset pagination, outbox events, structured logs, Prometheus metrics, and safe admin bootstrap.
+
+**Scaling strategy:** Reads scale through indexes, keyset pagination, Redis caching/counters, and horizontal backend replicas. Async notifications move through an outbox boundary.
+
+**Failure handling:** Redis fallback is documented, DB pool/query latency is observable, outbox protects against broker outages, and rollback paths are defined for Compose and Kubernetes.
+
+**Security:** Short-lived access tokens, opaque refresh tokens, token revocation, strong passwords, lockout, CORS, and security headers address common portfolio gaps.
+
+**Observability:** Actuator, Prometheus, JSON logs, request IDs, runbooks, and metrics targets make incidents explainable.
+
+**Trade-offs:** I kept it as a modular monolith because the goal is backend depth without unnecessary microservice overhead. The next scale trigger would split notification/search workloads.
+
+**What I would improve next:** add Testcontainers coverage, implement the outbox publisher worker, add load-test evidence, wire S3/MinIO production storage, and export a Grafana dashboard.
+
+---
+
+## Future Roadmap
+
+- [ ] Full email verification delivery worker (Spring Mail or external provider)
 - [ ] Tag system for posts (many-to-many)
-- [ ] Post view-count tracking
-- [ ] WebSocket notifications for new comments
-- [ ] Pagination cursor-based (keyset) for large datasets
-- [ ] Rate limiting per IP and per authenticated user (Bucket4j)
-- [ ] Kubernetes Helm chart for cloud deployment
+- [ ] Durable post view-count reconciliation job
+- [ ] WebSocket or async notifications for new comments
+- [ ] Outbox publisher worker with RabbitMQ/Kafka
+- [ ] Testcontainers MySQL and Redis integration coverage
+- [ ] k6/JMeter load-test report and Grafana dashboard JSON
+- [ ] S3-backed file storage implementation
 - [ ] React Native mobile client

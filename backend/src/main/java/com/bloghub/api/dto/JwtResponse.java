@@ -18,8 +18,13 @@ public class JwtResponse {
 
     private String accessToken;
 
+    private String refreshToken;
+
     @Builder.Default
     private String tokenType = "Bearer";
+
+    private Long accessTokenExpiresInMs;
+    private Long refreshTokenExpiresInMs;
 
     private Long userId;
     private String name;

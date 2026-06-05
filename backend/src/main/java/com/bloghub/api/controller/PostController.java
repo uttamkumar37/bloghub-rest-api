@@ -1,9 +1,12 @@
 package com.bloghub.api.controller;
 
 import com.bloghub.api.dto.ApiResponse;
+import com.bloghub.api.dto.KeysetPageResponse;
 import com.bloghub.api.dto.PagedResponse;
 import com.bloghub.api.dto.PostDto;
 import com.bloghub.api.dto.PostRequest;
+import com.bloghub.api.exception.BlogApiException;
+import com.bloghub.api.service.IdempotencyService;
 import com.bloghub.api.service.PostService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -15,6 +18,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Duration;
 
 /**
  * Blog post CRUD, search, pagination, and likes endpoints.
@@ -29,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 public class PostController {
 
     private final PostService postService;
+    private final IdempotencyService idempotencyService;
 
     // ── Public read endpoints ───────────────────────────────────────────────
 
@@ -42,6 +48,16 @@ public class PostController {
             @AuthenticationPrincipal UserDetails userDetails) {
         String username = userDetails != null ? userDetails.getUsername() : null;
         return ResponseEntity.ok(postService.getAllPosts(page, size, sortBy, sortDir, username));
+    }
+
+    @GetMapping("/keyset")
+    @Operation(summary = "Get recent posts using keyset pagination")
+    public ResponseEntity<KeysetPageResponse<PostDto>> getRecentPostsByCursor(
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        String username = userDetails != null ? userDetails.getUsername() : null;
+        return ResponseEntity.ok(postService.getRecentPostsAfter(cursor, size, username));
     }
 
     @GetMapping("/{postId}")
@@ -92,7 +108,9 @@ public class PostController {
     @Operation(summary = "Create a new blog post", security = @SecurityRequirement(name = "bearerAuth"))
     public ResponseEntity<PostDto> createPost(
             @Valid @RequestBody PostRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @AuthenticationPrincipal UserDetails userDetails) {
+        assertIdempotentCreateAllowed(idempotencyKey, userDetails.getUsername());
         PostDto created = postService.createPost(request, userDetails.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -126,5 +144,15 @@ public class PostController {
             @AuthenticationPrincipal UserDetails userDetails) {
         PostDto post = postService.toggleLike(postId, userDetails.getUsername());
         return ResponseEntity.ok(post);
+    }
+
+    private void assertIdempotentCreateAllowed(String idempotencyKey, String username) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return;
+        }
+        boolean claimed = idempotencyService.claim("post:create:" + username + ":" + idempotencyKey, Duration.ofHours(24));
+        if (!claimed) {
+            throw new BlogApiException(HttpStatus.CONFLICT, "Duplicate request detected for this Idempotency-Key");
+        }
     }
 }

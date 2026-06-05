@@ -9,6 +9,7 @@ import com.bloghub.api.exception.BlogApiException;
 import com.bloghub.api.exception.ResourceNotFoundException;
 import com.bloghub.api.repository.PostRepository;
 import com.bloghub.api.repository.UserRepository;
+import com.bloghub.api.service.outbox.OutboxService;
 import com.bloghub.api.service.impl.PostServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +39,12 @@ class PostServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private OutboxService outboxService;
+
+    @Mock
+    private CacheService cacheService;
 
     @InjectMocks
     private PostServiceImpl postService;

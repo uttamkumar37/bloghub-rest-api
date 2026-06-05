@@ -6,9 +6,11 @@ import com.bloghub.api.repository.RoleRepository;
 import com.bloghub.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.Set;
 
@@ -25,6 +27,18 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Value("${app.bootstrap.admin.enabled:false}")
+    private boolean bootstrapAdminEnabled;
+
+    @Value("${app.bootstrap.admin.username:admin}")
+    private String bootstrapAdminUsername;
+
+    @Value("${app.bootstrap.admin.email:admin@bloghub.local}")
+    private String bootstrapAdminEmail;
+
+    @Value("${app.bootstrap.admin.password:}")
+    private String bootstrapAdminPassword;
+
     @Override
     public void run(String... args) {
         // Seed roles
@@ -36,17 +50,29 @@ public class DataInitializer implements CommandLineRunner {
                 .orElseGet(() -> roleRepository.save(
                         Role.builder().name(Role.RoleName.ROLE_ADMIN).build()));
 
-        // Seed default admin user (change password in production!)
-        if (!userRepository.existsByUsername("admin")) {
+        if (!bootstrapAdminEnabled) {
+            log.info("Admin bootstrap disabled. Set APP_BOOTSTRAP_ADMIN_ENABLED=true and APP_BOOTSTRAP_ADMIN_PASSWORD to seed one.");
+            log.info("Database initialization complete.");
+            return;
+        }
+
+        if (!StringUtils.hasText(bootstrapAdminPassword)) {
+            log.warn("Admin bootstrap requested but no password was supplied. Skipping admin user creation.");
+            log.info("Database initialization complete.");
+            return;
+        }
+
+        if (!userRepository.existsByUsername(bootstrapAdminUsername)) {
             User admin = User.builder()
                     .name("Administrator")
-                    .username("admin")
-                    .email("admin@bloghub.com")
-                    .password(passwordEncoder.encode("Admin@123"))
+                    .username(bootstrapAdminUsername)
+                    .email(bootstrapAdminEmail)
+                    .password(passwordEncoder.encode(bootstrapAdminPassword))
+                    .emailVerified(true)
                     .roles(Set.of(adminRole, userRole))
                     .build();
             userRepository.save(admin);
-            log.info("Default admin user created. CHANGE THE PASSWORD IN PRODUCTION!");
+            log.info("Bootstrap admin user created: {}", bootstrapAdminUsername);
         }
 
         log.info("Database initialization complete.");

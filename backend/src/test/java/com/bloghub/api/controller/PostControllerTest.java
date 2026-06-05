@@ -3,7 +3,13 @@ package com.bloghub.api.controller;
 import com.bloghub.api.dto.PagedResponse;
 import com.bloghub.api.dto.PostDto;
 import com.bloghub.api.dto.PostRequest;
+import com.bloghub.api.config.SecurityConfig;
+import com.bloghub.api.security.CustomUserDetailsService;
+import com.bloghub.api.security.JwtAuthenticationEntryPoint;
+import com.bloghub.api.security.JwtTokenProvider;
+import com.bloghub.api.service.IdempotencyService;
 import com.bloghub.api.service.PostService;
+import com.bloghub.api.service.TokenBlacklistService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -11,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
@@ -26,6 +33,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(PostController.class)
+@Import({SecurityConfig.class, JwtAuthenticationEntryPoint.class})
 @ActiveProfiles("test")
 @DisplayName("PostController integration tests")
 class PostControllerTest {
@@ -38,6 +46,18 @@ class PostControllerTest {
 
     @MockBean
     private PostService postService;
+
+    @MockBean
+    private IdempotencyService idempotencyService;
+
+    @MockBean
+    private JwtTokenProvider tokenProvider;
+
+    @MockBean
+    private CustomUserDetailsService userDetailsService;
+
+    @MockBean
+    private TokenBlacklistService tokenBlacklistService;
 
     private PostDto samplePost;
 
@@ -136,5 +156,25 @@ class PostControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "alice", roles = {"USER"})
+    @DisplayName("POST /posts - duplicate idempotency key should return 409")
+    void createPost_duplicateIdempotencyKey() throws Exception {
+        PostRequest request = new PostRequest();
+        request.setTitle("New Post Title");
+        request.setDescription("New post description text");
+        request.setContent("This is the full content of the new post with enough characters");
+        request.setCategory("Tech");
+        given(idempotencyService.claim(eq("post:create:alice:duplicate-key"), any()))
+                .willReturn(false);
+
+        mockMvc.perform(post("/posts")
+                        .with(csrf())
+                        .header("Idempotency-Key", "duplicate-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict());
     }
 }

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bloghub-backend-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  JWT_EXPIRATION_MS: "900000"
+  JWT_REFRESH_EXPIRATION_MS: "604800000"
+  CORS_ALLOWED_ORIGIN_PATTERNS: "https://bloghub.example.com"

@@ -2,6 +2,8 @@ package com.bloghub.api.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -18,8 +20,12 @@ import java.util.Set;
 @Entity
 @Table(name = "posts", indexes = {
     @Index(name = "idx_posts_author", columnList = "user_id"),
-    @Index(name = "idx_posts_created_at", columnList = "created_at")
+    @Index(name = "idx_posts_created_at", columnList = "created_at"),
+    @Index(name = "idx_posts_category_created", columnList = "category, created_at"),
+    @Index(name = "idx_posts_deleted_created_id", columnList = "deleted, created_at, id")
 })
+@SQLDelete(sql = "UPDATE posts SET deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
+@SQLRestriction("deleted = false")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -43,6 +49,9 @@ public class Post {
     /** Category/tag for the post */
     @Column(length = 100)
     private String category;
+
+    @Column(name = "cover_image_url", length = 500)
+    private String coverImageUrl;
 
     /** Many posts belong to one user (author) */
     @ManyToOne(fetch = FetchType.LAZY)
@@ -71,6 +80,13 @@ public class Post {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Builder.Default
+    @Column(name = "deleted", nullable = false)
+    private boolean deleted = false;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     /** Convenience method to get like count */
     public int getLikesCount() {

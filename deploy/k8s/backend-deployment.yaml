@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bloghub-backend
+  labels:
+    app: bloghub-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bloghub-backend
+  template:
+    metadata:
+      labels:
+        app: bloghub-backend
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/your-org/bloghub-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: bloghub-backend-secrets
+            - configMapRef:
+                name: bloghub-backend-config
+          readinessProbe:
+            httpGet:
+              path: /api/v1/actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi

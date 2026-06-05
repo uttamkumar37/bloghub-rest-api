@@ -2,14 +2,18 @@ package com.bloghub.api.service;
 
 import com.bloghub.api.dto.JwtResponse;
 import com.bloghub.api.dto.LoginRequest;
+import com.bloghub.api.dto.LogoutRequest;
+import com.bloghub.api.dto.RefreshTokenRequest;
 import com.bloghub.api.dto.RegisterRequest;
 import com.bloghub.api.dto.UserDto;
+import com.bloghub.api.entity.RefreshToken;
 import com.bloghub.api.entity.Role;
 import com.bloghub.api.entity.User;
 import com.bloghub.api.exception.BlogApiException;
 import com.bloghub.api.repository.RoleRepository;
 import com.bloghub.api.repository.UserRepository;
 import com.bloghub.api.security.JwtTokenProvider;
+import com.bloghub.api.service.outbox.OutboxService;
 import com.bloghub.api.service.impl.AuthServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +28,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Set;
 
@@ -43,6 +49,9 @@ class AuthServiceTest {
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private AuthenticationManager authenticationManager;
     @Mock private JwtTokenProvider tokenProvider;
+    @Mock private RefreshTokenService refreshTokenService;
+    @Mock private TokenBlacklistService tokenBlacklistService;
+    @Mock private OutboxService outboxService;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -57,7 +66,7 @@ class AuthServiceTest {
         registerRequest.setName("Alice");
         registerRequest.setUsername("alice");
         registerRequest.setEmail("alice@example.com");
-        registerRequest.setPassword("password123");
+        registerRequest.setPassword("StrongPass@123");
 
         userRole = Role.builder().id(1L).name(Role.RoleName.ROLE_USER).build();
 
@@ -77,7 +86,7 @@ class AuthServiceTest {
         given(userRepository.existsByUsername("alice")).willReturn(false);
         given(userRepository.existsByEmail("alice@example.com")).willReturn(false);
         given(roleRepository.findByName(Role.RoleName.ROLE_USER)).willReturn(Optional.of(userRole));
-        given(passwordEncoder.encode("password123")).willReturn("hashed");
+        given(passwordEncoder.encode("StrongPass@123")).willReturn("hashed");
         given(userRepository.save(any(User.class))).willReturn(savedUser);
 
         UserDto result = authService.register(registerRequest);
@@ -115,20 +124,80 @@ class AuthServiceTest {
     void login_success() {
         LoginRequest loginRequest = new LoginRequest();
         loginRequest.setUsernameOrEmail("alice");
-        loginRequest.setPassword("password123");
+        loginRequest.setPassword("StrongPass@123");
 
         Authentication authentication = mock(Authentication.class);
+        RefreshToken refreshToken = RefreshToken.builder()
+                .tokenHash("hash")
+                .user(savedUser)
+                .expiresAt(LocalDateTime.now().plusDays(7))
+                .build();
         given(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .willReturn(authentication);
         given(tokenProvider.generateToken(authentication)).willReturn("mocked.jwt.token");
+        given(tokenProvider.getJwtExpirationMs()).willReturn(900000L);
         given(userRepository.findByUsernameOrEmail("alice", "alice")).willReturn(Optional.of(savedUser));
         given(authentication.getAuthorities()).willReturn(java.util.Collections.emptyList());
+        given(refreshTokenService.issueToken(savedUser, null))
+                .willReturn(new RefreshTokenService.IssuedRefreshToken("refresh-token", refreshToken));
 
         JwtResponse response = authService.login(loginRequest);
 
         assertThat(response).isNotNull();
         assertThat(response.getAccessToken()).isEqualTo("mocked.jwt.token");
+        assertThat(response.getRefreshToken()).isEqualTo("refresh-token");
         assertThat(response.getUsername()).isEqualTo("alice");
         assertThat(response.getTokenType()).isEqualTo("Bearer");
+    }
+
+    @Test
+    @DisplayName("login - should record failure on invalid credentials")
+    void login_invalidCredentials() {
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setUsernameOrEmail("alice");
+        loginRequest.setPassword("wrong-password");
+
+        given(userRepository.findByUsernameOrEmail("alice", "alice")).willReturn(Optional.of(savedUser));
+        given(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .willThrow(new org.springframework.security.authentication.BadCredentialsException("bad credentials"));
+
+        assertThatThrownBy(() -> authService.login(loginRequest))
+                .isInstanceOf(org.springframework.security.authentication.BadCredentialsException.class);
+        verify(userRepository).save(savedUser);
+        assertThat(savedUser.getFailedLoginAttempts()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("refreshToken - should rotate refresh token and return new token pair")
+    void refreshToken_rotates() {
+        RefreshTokenRequest request = new RefreshTokenRequest();
+        request.setRefreshToken("old-refresh-token");
+        RefreshToken refreshToken = RefreshToken.builder()
+                .tokenHash("new-hash")
+                .user(savedUser)
+                .expiresAt(LocalDateTime.now().plusDays(7))
+                .build();
+        given(refreshTokenService.rotate("old-refresh-token", "127.0.0.1"))
+                .willReturn(new RefreshTokenService.IssuedRefreshToken("new-refresh-token", refreshToken));
+        given(tokenProvider.generateTokenFromUsername("alice")).willReturn("new-access-token");
+        given(tokenProvider.getJwtExpirationMs()).willReturn(900000L);
+
+        JwtResponse response = authService.refreshToken(request, "127.0.0.1");
+
+        assertThat(response.getAccessToken()).isEqualTo("new-access-token");
+        assertThat(response.getRefreshToken()).isEqualTo("new-refresh-token");
+    }
+
+    @Test
+    @DisplayName("logout - should blacklist access token and revoke refresh token")
+    void logout_blacklistsAndRevokes() {
+        LogoutRequest request = new LogoutRequest();
+        request.setRefreshToken("refresh-token");
+        given(tokenProvider.getRemainingTtl("access-token")).willReturn(Duration.ofMinutes(10));
+
+        authService.logout("Bearer access-token", request);
+
+        verify(tokenBlacklistService).blacklist("access-token", Duration.ofMinutes(10));
+        verify(refreshTokenService).revoke("refresh-token");
     }
 }

@@ -67,6 +67,15 @@ class JwtTokenProviderTest {
         assertThat(tokenProvider.validateToken("not.a.jwt")).isFalse();
     }
 
+    @Test
+    @DisplayName("should return zero TTL for expired token")
+    void getRemainingTtl_expiredToken() {
+        ReflectionTestUtils.setField(tokenProvider, "jwtExpirationMs", -1000L);
+        String token = tokenProvider.generateTokenFromUsername("alice");
+        assertThat(tokenProvider.getRemainingTtl(token)).isZero();
+        assertThat(tokenProvider.validateToken(token)).isFalse();
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────────
 
     private Authentication buildAuthentication(String username) {

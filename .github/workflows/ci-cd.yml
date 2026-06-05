@@ -34,6 +34,14 @@ jobs:
         working-directory: backend
         run: mvn clean verify -B -Dspring.profiles.active=test
 
+      - name: Print backend test summary
+        if: always()
+        working-directory: backend
+        run: |
+          echo "Surefire reports:"
+          ls -la target/surefire-reports || true
+          grep -R "Tests run" target/surefire-reports || true
+
       - name: Upload JaCoCo coverage report
         if: always()
         uses: actions/upload-artifact@v4
@@ -47,6 +55,27 @@ jobs:
         with:
           name: surefire-reports
           path: backend/target/surefire-reports/
+
+      - name: Coverage target note
+        run: |
+          echo "Portfolio target: 75% overall and 85% service-layer coverage."
+          echo "Keep this visible until the Testcontainers/security suites are complete."
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 2. Docker Compose validation
+  # ─────────────────────────────────────────────────────────────────────────
+  compose-validate:
+    name: Docker Compose – Validate
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci_only_dummy_secret_for_compose_validation_not_for_runtime
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Compose files
+        run: docker compose config
 
   # ─────────────────────────────────────────────────────────────────────────
   # 2. Frontend – lint & build
@@ -84,7 +113,7 @@ jobs:
   docker-publish:
     name: Docker – Build & Push
     runs-on: ubuntu-latest
-    needs: [backend-ci, frontend-ci]
+    needs: [backend-ci, frontend-ci, compose-validate]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     permissions:

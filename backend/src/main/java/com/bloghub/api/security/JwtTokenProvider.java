@@ -10,6 +10,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
 
 /**
@@ -68,6 +70,20 @@ public class JwtTokenProvider {
             log.warn("JWT processing error: {}", ex.getMessage());
         }
         return false;
+    }
+
+    public Duration getRemainingTtl(String token) {
+        try {
+            Instant expiresAt = parseClaims(token).getExpiration().toInstant();
+            Duration ttl = Duration.between(Instant.now(), expiresAt);
+            return ttl.isNegative() ? Duration.ZERO : ttl;
+        } catch (JwtException | IllegalArgumentException ex) {
+            return Duration.ZERO;
+        }
+    }
+
+    public long getJwtExpirationMs() {
+        return jwtExpirationMs;
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 package com.bloghub.api.service;
 
 import com.bloghub.api.dto.PagedResponse;
+import com.bloghub.api.dto.KeysetPageResponse;
 import com.bloghub.api.dto.PostDto;
 import com.bloghub.api.dto.PostRequest;
 
@@ -18,6 +19,8 @@ public interface PostService {
     PostDto getPostById(Long postId, String username);
 
     PagedResponse<PostDto> getAllPosts(int page, int size, String sortBy, String sortDir, String username);
+
+    KeysetPageResponse<PostDto> getRecentPostsAfter(Long cursor, int size, String username);
 
     PagedResponse<PostDto> getPostsByUser(Long userId, int page, int size, String username);
 

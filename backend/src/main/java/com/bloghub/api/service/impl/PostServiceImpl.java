@@ -1,5 +1,6 @@
 package com.bloghub.api.service.impl;
 
+import com.bloghub.api.dto.KeysetPageResponse;
 import com.bloghub.api.dto.PagedResponse;
 import com.bloghub.api.dto.PostDto;
 import com.bloghub.api.dto.PostRequest;
@@ -10,7 +11,9 @@ import com.bloghub.api.exception.BlogApiException;
 import com.bloghub.api.exception.ResourceNotFoundException;
 import com.bloghub.api.repository.PostRepository;
 import com.bloghub.api.repository.UserRepository;
+import com.bloghub.api.service.CacheService;
 import com.bloghub.api.service.PostService;
+import com.bloghub.api.service.outbox.OutboxService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -36,6 +40,8 @@ public class PostServiceImpl implements PostService {
 
     private final PostRepository postRepository;
     private final UserRepository userRepository;
+    private final OutboxService outboxService;
+    private final CacheService cacheService;
 
     @Override
     @Transactional
@@ -95,6 +101,7 @@ public class PostServiceImpl implements PostService {
     @Transactional(readOnly = true)
     public PostDto getPostById(Long postId, String username) {
         Post post = findPostById(postId);
+        cacheService.increment("bloghub:post:view-count:" + postId, Duration.ofDays(7));
         return mapToDto(post, username);
     }
 
@@ -108,6 +115,26 @@ public class PostServiceImpl implements PostService {
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<Post> posts = postRepository.findAll(pageable);
         return buildPagedResponse(posts, username);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public KeysetPageResponse<PostDto> getRecentPostsAfter(Long cursor, int size, String username) {
+        int safeSize = Math.max(1, Math.min(size, 50));
+        Pageable pageable = PageRequest.of(0, safeSize + 1);
+        List<Post> posts = postRepository.findNextKeysetPage(cursor, pageable);
+        boolean hasNext = posts.size() > safeSize;
+        List<Post> pageItems = hasNext ? posts.subList(0, safeSize) : posts;
+        List<PostDto> content = pageItems.stream()
+                .map(post -> mapToDto(post, username))
+                .collect(Collectors.toList());
+        Long nextCursor = hasNext && !pageItems.isEmpty() ? pageItems.get(pageItems.size() - 1).getId() : null;
+        return KeysetPageResponse.<PostDto>builder()
+                .content(content)
+                .nextCursor(nextCursor)
+                .hasNext(hasNext)
+                .size(content.size())
+                .build();
     }
 
     @Override
@@ -153,6 +180,12 @@ public class PostServiceImpl implements PostService {
             log.info("User '{}' unliked post {}", username, postId);
         } else {
             post.getLikes().add(user);
+            outboxService.saveEvent(
+                    "POST",
+                    String.valueOf(postId),
+                    "POST_LIKED",
+                    "{\"postId\":" + postId + ",\"userId\":" + user.getId() + "}"
+            );
             log.info("User '{}' liked post {}", username, postId);
         }
 

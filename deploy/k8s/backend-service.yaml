@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bloghub-backend
+  labels:
+    app: bloghub-backend
+spec:
+  type: ClusterIP
+  selector:
+    app: bloghub-backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

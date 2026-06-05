@@ -1,7 +1,9 @@
 package com.bloghub.api.exception;
 
+import com.bloghub.api.filter.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -76,6 +78,7 @@ public class GlobalExceptionHandler {
                 .error("Validation Failed")
                 .message("Input validation failed. Check 'validationErrors' for details.")
                 .path(request.getRequestURI())
+                .correlationId(correlationId())
                 .validationErrors(validationErrors)
                 .build();
 
@@ -101,6 +104,11 @@ public class GlobalExceptionHandler {
                 .error(status.getReasonPhrase())
                 .message(message)
                 .path(path)
+                .correlationId(correlationId())
                 .build();
+    }
+
+    private String correlationId() {
+        return MDC.get(CorrelationIdFilter.MDC_KEY);
     }
 }

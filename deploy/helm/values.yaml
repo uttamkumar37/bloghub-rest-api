@@ -1,0 +1,17 @@
+backend:
+  image:
+    repository: ghcr.io/your-org/bloghub-backend
+    tag: latest
+  replicas: 2
+  env:
+    SPRING_PROFILES_ACTIVE: prod
+    JWT_EXPIRATION_MS: "900000"
+    JWT_REFRESH_EXPIRATION_MS: "604800000"
+    CORS_ALLOWED_ORIGIN_PATTERNS: "https://bloghub.example.com"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi

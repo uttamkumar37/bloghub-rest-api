@@ -1,5 +1,6 @@
 package com.bloghub.api.security;
 
+import com.bloghub.api.service.TokenBlacklistService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,6 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final CustomUserDetailsService userDetailsService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -38,7 +40,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String token = extractJwtFromRequest(request);
 
-            if (StringUtils.hasText(token) && tokenProvider.validateToken(token)) {
+            if (StringUtils.hasText(token)
+                    && tokenProvider.validateToken(token)
+                    && !tokenBlacklistService.isBlacklisted(token)) {
                 String username = tokenProvider.getUsernameFromToken(token);
 
                 // Load user details and build authentication object
