@@ -15,7 +15,6 @@ export default function EditPostPage() {
   const navigate = useNavigate()
   const { enqueueSnackbar } = useSnackbar()
   const { currentPost: post, loading, error } = useSelector((s) => s.posts)
-  const { user } = useSelector((s) => s.auth)
 
   const {
     register,

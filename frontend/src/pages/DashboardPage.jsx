@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import {
   Container, Box, Typography, Grid, Button, TextField,
-  InputAdornment, Pagination, CircularProgress, Alert, Chip, Stack
+  InputAdornment, Pagination, CircularProgress, Alert
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import AddIcon from '@mui/icons-material/Add'
@@ -13,29 +13,26 @@ import PostCard from '../components/PostCard'
 export default function DashboardPage() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const { posts, totalPages, currentPage, loading, error } = useSelector((s) => s.posts)
+  const { posts, totalPages, loading, error } = useSelector((s) => s.posts)
   const { isAuthenticated } = useSelector((s) => s.auth)
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeSearchQuery, setActiveSearchQuery] = useState('')
   const [page, setPage] = useState(1)
 
-  // Fetch posts on mount and when page changes
+  // Fetch posts when pagination or the submitted search changes.
   useEffect(() => {
-    if (searchQuery) {
-      dispatch(searchPosts({ query: searchQuery, page: page - 1, size: 9 }))
+    if (activeSearchQuery) {
+      dispatch(searchPosts({ query: activeSearchQuery, page: page - 1, size: 9 }))
     } else {
       dispatch(fetchPosts({ page: page - 1, size: 9, sortBy: 'createdAt', sortDir: 'desc' }))
     }
-  }, [dispatch, page])
+  }, [activeSearchQuery, dispatch, page])
 
   const handleSearch = (e) => {
     e.preventDefault()
+    setActiveSearchQuery(searchQuery.trim())
     setPage(1)
-    if (searchQuery.trim()) {
-      dispatch(searchPosts({ query: searchQuery, page: 0, size: 9 }))
-    } else {
-      dispatch(fetchPosts({ page: 0, size: 9 }))
-    }
   }
 
   const handlePageChange = (_, value) => setPage(value)

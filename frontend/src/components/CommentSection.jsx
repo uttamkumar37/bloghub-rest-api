@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import {
   Box, Typography, Avatar, TextField, Button,
@@ -26,12 +26,7 @@ export default function CommentSection({ postId }) {
   const [editingId, setEditingId] = useState(null)
   const [editBody, setEditBody] = useState('')
 
-  // Load comments on mount
-  useEffect(() => {
-    loadComments()
-  }, [postId])
-
-  const loadComments = async () => {
+  const loadComments = useCallback(async () => {
     setLoading(true)
     try {
       const data = await commentService.getComments(postId)
@@ -41,7 +36,12 @@ export default function CommentSection({ postId }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [enqueueSnackbar, postId])
+
+  // Load comments on mount and when the post changes.
+  useEffect(() => {
+    loadComments()
+  }, [loadComments])
 
   const handleAddComment = async () => {
     if (!newComment.trim()) return

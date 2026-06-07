@@ -136,7 +136,7 @@ export default function LoginPage() {
             </Divider>
 
             <Typography align="center" variant="body2">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link to="/register" style={{ color: '#1976d2', fontWeight: 600 }}>
                 Sign Up
               </Link>

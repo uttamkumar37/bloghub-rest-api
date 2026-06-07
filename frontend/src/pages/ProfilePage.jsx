@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import {
   Container, Box, Typography, Avatar, Card, CardContent,
-  TextField, Button, Grid, Alert, CircularProgress, Chip, Divider
+  TextField, Button, Grid, CircularProgress, Chip, Divider
 } from '@mui/material'
 import { updateProfile } from '../redux/slices/authSlice'
 import postService from '../services/postService'
@@ -162,7 +162,7 @@ export default function ProfilePage() {
               <CircularProgress />
             </Box>
           ) : userPosts.length === 0 ? (
-            <Typography color="text.secondary">You haven't written any posts yet.</Typography>
+            <Typography color="text.secondary">You haven&apos;t written any posts yet.</Typography>
           ) : (
             <Grid container spacing={2}>
               {userPosts.map((post) => (

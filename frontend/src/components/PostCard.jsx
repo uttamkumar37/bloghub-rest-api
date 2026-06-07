@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   Card, CardContent, CardActions, Typography, Avatar,
-  Box, Chip, IconButton, Tooltip, Button
+  Box, Chip, IconButton, Tooltip
 } from '@mui/material'
 import FavoriteIcon from '@mui/icons-material/Favorite'
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder'

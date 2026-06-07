@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useDispatch, useSelector } from 'react-redux'
+import { useDispatch } from 'react-redux'
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material'
 import { loadUserFromStorage } from './redux/slices/authSlice'
 
