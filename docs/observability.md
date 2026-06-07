@@ -13,7 +13,7 @@ Define health checks, metrics, logs, traces-ready correlation IDs, dashboards, a
 - Actuator exposes `health`, `info`, `metrics`, and `prometheus`.
 - `CorrelationIdFilter` sets/propagates `X-Request-ID`.
 - Production logs are JSON via `logback-spring.xml`.
-- Micrometer common tags identify `application=bloghub-api`.
+- Micrometer common tags identify `application=bloghub-backend`.
 - Cache service emits `bloghub.cache.requests` counters.
 
 ## Alerting Rules
@@ -57,4 +57,3 @@ curl -H 'X-Request-ID: demo-123' http://localhost:8080/api/v1/posts
 - [ ] Logs contain correlation ID.
 - [ ] Metrics include latency/error/cache signals.
 - [ ] Alert targets are documented.
-

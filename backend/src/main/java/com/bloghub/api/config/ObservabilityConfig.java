@@ -11,7 +11,7 @@ public class ObservabilityConfig {
     @Bean
     public MeterRegistryCustomizer<MeterRegistry> bloghubCommonTags() {
         return registry -> registry.config().commonTags(
-                "application", "bloghub-api",
+                "application", "bloghub-backend",
                 "service", "backend"
         );
     }
